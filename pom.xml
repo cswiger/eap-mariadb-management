@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>eap-mariadb-dbtool</artifactId>
+  <version>1.0.0</version>
+  <packaging>war</packaging>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <version.mariadb.driver>3.5.3</version.mariadb.driver>
+    <version.eap.maven.plugin>1.0.0.Final-redhat-00014</version.eap.maven.plugin>
+  </properties>
+
+  <repositories>
+    <repository>
+      <id>redhat-ga</id>
+      <url>https://maven.repository.redhat.com/ga/</url>
+    </repository>
+  </repositories>
+  <pluginRepositories>
+    <pluginRepository>
+      <id>redhat-ga</id>
+      <url>https://maven.repository.redhat.com/ga/</url>
+    </pluginRepository>
+  </pluginRepositories>
+
+  <dependencies>
+    <dependency>
+      <groupId>jakarta.platform</groupId>
+      <artifactId>jakarta.jakartaee-api</artifactId>
+      <version>10.0.0</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>ROOT</finalName>
+  </build>
+
+  <profiles>
+    <!-- The OpenShift S2I build automatically activates this profile:
+         it runs `mvn package -Popenshift` inside the EAP 8.1 builder image. -->
+    <profile>
+      <id>openshift</id>
+      <build>
+        <plugins>
+          <!-- Download the MariaDB JDBC driver jar and place it where the
+               JBoss module (see src/main/server-content) expects it. -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-dependency-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>copy-mariadb-driver</id>
+                <phase>prepare-package</phase>
+                <goals><goal>copy</goal></goals>
+                <configuration>
+                  <artifactItems>
+                    <artifactItem>
+                      <groupId>org.mariadb.jdbc</groupId>
+                      <artifactId>mariadb-java-client</artifactId>
+                      <version>${version.mariadb.driver}</version>
+                      <outputDirectory>${project.build.directory}/server-content/modules/org/mariadb/jdbc/main</outputDirectory>
+                      <destFileName>mariadb-java-client.jar</destFileName>
+                    </artifactItem>
+                  </artifactItems>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- Provisions the EAP 8.1 server itself during the build,
+               overlays the MariaDB module, and runs the CLI script that
+               registers the driver + datasource. -->
+          <plugin>
+            <groupId>org.jboss.eap.plugins</groupId>
+            <artifactId>eap-maven-plugin</artifactId>
+            <version>${version.eap.maven.plugin}</version>
+            <configuration>
+              <channels>
+                <channel>
+                  <manifest>
+                    <groupId>org.jboss.eap.channels</groupId>
+                    <artifactId>eap-8.1</artifactId>
+                  </manifest>
+                </channel>
+              </channels>
+              <feature-packs>
+                <feature-pack>
+                  <location>org.jboss.eap:wildfly-ee-galleon-pack</location>
+                </feature-pack>
+                <feature-pack>
+                  <location>org.jboss.eap.cloud:eap-cloud-galleon-pack</location>
+                </feature-pack>
+              </feature-packs>
+              <layers>
+                <layer>cloud-server</layer>
+              </layers>
+              <extra-server-content-dirs>
+                <extra-server-content-dir>src/main/server-content</extra-server-content-dir>
+                <extra-server-content-dir>${project.build.directory}/server-content</extra-server-content-dir>
+              </extra-server-content-dirs>
+              <packaging-scripts>
+                <packaging-script>
+                  <scripts>
+                    <script>src/main/scripts/mariadb-datasource.cli</script>
+                  </scripts>
+                </packaging-script>
+              </packaging-scripts>
+            </configuration>
+            <executions>
+              <execution>
+                <goals><goal>package</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

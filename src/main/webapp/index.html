@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MariaDB Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16282c;         /* body text */
+  --chrome:#04252e;      /* deep MariaDB teal — top bar */
+  --chrome-2:#073744;    /* sidebar */
+  --paper:#f2f5f5;       /* workspace */
+  --card:#ffffff;
+  --line:#d8e0e1;
+  --accent:#0e7c86;      /* actions */
+  --accent-ink:#0a5b63;
+  --caution:#d9a441;     /* truncate etc. */
+  --danger:#b3402e;      /* drop */
+  --muted:#5b6b6e;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --disp:'Space Grotesk',sans-serif;
+  --body:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:var(--body);color:var(--ink);background:var(--paper);font-size:14px}
+
+/* ---------- chrome ---------- */
+header{background:var(--chrome);color:#e8f1f2;display:flex;align-items:center;gap:1.2rem;
+  padding:.55rem 1.1rem;position:sticky;top:0;z-index:20}
+header h1{font-family:var(--disp);font-size:1.02rem;font-weight:700;letter-spacing:.02em;margin:0;white-space:nowrap}
+header h1 span{color:#7fd1c9;font-weight:500}
+/* signature: live connection strip styled as a prompt */
+#conn{font-family:var(--mono);font-size:.78rem;color:#9fc3c0;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.32rem .65rem;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+#conn b{color:#e8f1f2;font-weight:500}
+#conn .cursor{display:inline-block;width:.55em;height:1em;background:#7fd1c9;vertical-align:-0.15em;
+  margin-left:.25em;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion: reduce){#conn .cursor{animation:none}}
+#logout{color:#9fc3c0;font-size:.78rem;text-decoration:none;white-space:nowrap}
+#logout:hover{color:#fff}
+
+/* ---------- layout ---------- */
+#app{display:flex;height:calc(100vh - 49px)}
+aside{width:250px;background:var(--chrome-2);color:#d7e5e6;display:flex;flex-direction:column;flex-shrink:0}
+main{flex:1;overflow:auto;padding:1.1rem 1.4rem}
+
+/* ---------- sidebar ---------- */
+.side-block{padding:.8rem .9rem;border-bottom:1px solid rgba(255,255,255,.08)}
+.side-block label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.09em;
+  color:#8fb2b3;margin-bottom:.35rem;font-weight:600}
+aside select,#tblFilter{width:100%;padding:.42rem .5rem;border-radius:6px;border:1px solid rgba(255,255,255,.15);
+  background:#0a4552;color:#e8f1f2;font-size:.85rem;font-family:var(--body)}
+main select{background:var(--card);color:var(--ink);border:1px solid #b8c4c6;border-radius:6px;
+  padding:.4rem .5rem;font-size:.84rem;font-family:var(--body)}
+.side-actions{display:flex;gap:.4rem;margin-top:.5rem}
+#tables{flex:1;overflow:auto;padding:.4rem 0}
+.tbl-item{display:flex;justify-content:space-between;align-items:center;gap:.5rem;
+  padding:.38rem .95rem;cursor:pointer;font-size:.86rem}
+.tbl-item:hover{background:rgba(255,255,255,.06)}
+.tbl-item.active{background:var(--accent);color:#fff}
+.tbl-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:.8rem}
+.tbl-item .ct{font-size:.68rem;color:#8fb2b3;flex-shrink:0}
+.tbl-item.active .ct{color:#d3ecea}
+.badge{font-size:.6rem;background:var(--caution);color:#3a2c07;border-radius:3px;padding:0 .28rem;
+  margin-left:.3rem;font-weight:600;vertical-align:middle}
+.side-foot{padding:.7rem .9rem;border-top:1px solid rgba(255,255,255,.08)}
+
+/* ---------- buttons ---------- */
+button{font-family:var(--body);font-size:.82rem;font-weight:600;border:0;border-radius:6px;
+  padding:.42rem .8rem;cursor:pointer;background:var(--accent);color:#fff}
+button:hover{background:var(--accent-ink)}
+button.ghost{background:transparent;color:var(--accent-ink);border:1px solid var(--accent)}
+button.ghost:hover{background:#e3efef}
+button.side{background:rgba(255,255,255,.1);color:#d7e5e6;font-weight:500;font-size:.76rem;flex:1}
+button.side:hover{background:rgba(255,255,255,.2)}
+button.warn{background:var(--caution);color:#3a2c07}
+button.danger{background:var(--danger)}
+button.mini{padding:.18rem .5rem;font-size:.72rem;font-weight:500}
+button:disabled{opacity:.45;cursor:default}
+
+/* ---------- tabs / cards ---------- */
+#tabs{display:flex;gap:.25rem;border-bottom:2px solid var(--line);margin-bottom:1rem}
+#tabs .tab{background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-2px;
+  border-radius:0;color:var(--muted);font-family:var(--disp);font-weight:600;font-size:.88rem;padding:.5rem .9rem}
+#tabs .tab.on{color:var(--accent-ink);border-bottom-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:1rem 1.1rem;margin-bottom:1rem}
+.card h2{font-family:var(--disp);font-size:.95rem;margin:0 0 .7rem}
+h2.pagehead{font-family:var(--disp);font-size:1.15rem;margin:.1rem 0 .9rem}
+h2.pagehead .mono{font-family:var(--mono);font-size:1.02rem;color:var(--accent-ink)}
+.hint{font-size:.76rem;color:var(--muted)}
+
+/* ---------- data grid ---------- */
+.gridwrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+table.grid{border-collapse:collapse;width:100%;font-size:.8rem}
+table.grid th{font-family:var(--disp);font-size:.72rem;letter-spacing:.03em;text-align:left;
+  background:#e9efef;padding:.45rem .6rem;border-bottom:2px solid var(--line);white-space:nowrap;
+  position:sticky;top:0;cursor:pointer;user-select:none}
+table.grid th.nosort{cursor:default}
+table.grid th .dir{color:var(--accent-ink)}
+table.grid td{padding:.34rem .6rem;border-bottom:1px solid #edf1f1;font-family:var(--mono);
+  font-size:.76rem;white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+table.grid tr:hover td{background:#f4f8f8}
+td.nullv{color:#a4b0b2;font-style:italic;font-family:var(--body)}
+td.acts{white-space:nowrap;font-family:var(--body)}
+td input[type=text]{width:100%;min-width:90px;font-family:var(--mono);font-size:.76rem;
+  padding:.2rem .3rem;border:1px solid var(--accent);border-radius:4px}
+.nulltog{font-size:.62rem;font-family:var(--body);color:var(--muted);white-space:nowrap;display:block;margin-top:2px}
+
+/* ---------- forms ---------- */
+.frow{display:flex;gap:.6rem;flex-wrap:wrap;align-items:end;margin-bottom:.6rem}
+.fld{display:flex;flex-direction:column;gap:.2rem}
+.fld label{font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.fld input[type=text],.fld input[type=number],.fld select{padding:.4rem .5rem;border:1px solid #b8c4c6;
+  border-radius:6px;font-size:.84rem;font-family:var(--mono)}
+.fld.chk{flex-direction:row;align-items:center;gap:.3rem;padding-bottom:.45rem}
+.fld.chk label{text-transform:none;letter-spacing:0}
+pre.sqlout{font-family:var(--mono);font-size:.76rem;background:#0a2f38;color:#cfe6e3;
+  padding:.9rem 1rem;border-radius:8px;overflow:auto;line-height:1.5;margin:0}
+textarea#sqlbox{width:100%;min-height:150px;font-family:var(--mono);font-size:.84rem;
+  border:1px solid #b8c4c6;border-radius:8px;padding:.7rem .8rem;resize:vertical;background:var(--card)}
+.pager{display:flex;align-items:center;gap:.6rem;margin:.7rem 0;flex-wrap:wrap}
+.pager .info{font-size:.78rem;color:var(--muted)}
+.toolbar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem}
+.spacer{flex:1}
+.danger-zone{border-color:#e5c9c2}
+.danger-zone h2{color:var(--danger)}
+
+/* ---------- toasts ---------- */
+#toasts{position:fixed;bottom:1rem;right:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:50}
+.toast{background:var(--chrome);color:#e8f1f2;padding:.6rem .9rem;border-radius:8px;font-size:.82rem;
+  box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:380px}
+.toast.err{background:var(--danger)}
+.hidden{display:none!important}
+
+@media (max-width:760px){
+  #app{flex-direction:column;height:auto}
+  aside{width:100%;max-height:40vh}
+  #conn{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MariaDB <span>Workbench</span></h1>
+  <div id="conn">connecting…<span class="cursor"></span></div>
+  <a id="logout" href="logout" class="hidden">Sign out</a>
+</header>
+
+<div id="app">
+  <aside>
+    <div class="side-block">
+      <label for="dbsel">Database</label>
+      <select id="dbsel"></select>
+      <div class="side-actions">
+        <button class="side" id="btnNewDb">New database</button>
+        <button class="side" id="btnDropDb">Drop</button>
+      </div>
+    </div>
+    <div class="side-block">
+      <label for="tblFilter">Tables</label>
+      <input type="text" id="tblFilter" placeholder="Filter tables…">
+    </div>
+    <div id="tables"></div>
+    <div class="side-foot">
+      <button class="side" id="btnNewTable" style="width:100%">+ Create table</button>
+    </div>
+  </aside>
+
+  <main>
+    <div id="tabs" class="hidden">
+      <button class="tab on" data-view="browse">Browse</button>
+      <button class="tab" data-view="structure">Structure</button>
+      <button class="tab" data-view="sql">SQL console</button>
+    </div>
+
+    <!-- ============ welcome ============ -->
+    <section id="view-welcome">
+      <h2 class="pagehead">Pick a table to get started</h2>
+      <div class="card">
+        <p style="margin:.2rem 0 .6rem">Everything the previous hello-world app hinted at, grown up:</p>
+        <p class="hint" style="line-height:1.7">
+          Browse, sort, and page through any table &middot; insert, edit, and delete rows inline &middot;
+          create and drop tables and databases &middot; add, modify, and drop columns &middot;
+          rename and truncate &middot; export and import CSV &middot; and a raw SQL console for everything else.
+          Select a database on the left, click a table, or open the SQL console from any table view.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ browse ============ -->
+    <section id="view-browse" class="hidden">
+      <h2 class="pagehead">Browse <span class="mono" id="browseTitle"></span></h2>
+      <div class="toolbar">
+        <button id="btnInsert">+ Insert row</button>
+        <button class="ghost" id="btnRefresh">Refresh</button>
+        <span class="spacer"></span>
+        <button class="ghost" id="btnExport">Export CSV</button>
+        <button class="ghost" id="btnImport">Import CSV</button>
+        <input type="file" id="importFile" accept=".csv,text/csv" class="hidden">
+      </div>
+      <div id="insertPanel" class="card hidden"></div>
+      <div class="gridwrap"><table class="grid" id="dataGrid"></table></div>
+      <div class="pager">
+        <button class="ghost mini" id="pgFirst">&#171;</button>
+        <button class="ghost mini" id="pgPrev">&#8249;</button>
+        <span class="info" id="pgInfo"></span>
+        <button class="ghost mini" id="pgNext">&#8250;</button>
+        <button class="ghost mini" id="pgLast">&#187;</button>
+        <span class="spacer"></span>
+        <span class="info">Rows per page</span>
+        <select id="pgSize" style="width:auto;background:var(--card);color:var(--ink);border-color:#b8c4c6">
+          <option>25</option><option selected>50</option><option>100</option><option>250</option><option>500</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- ============ structure ============ -->
+    <section id="view-structure" class="hidden">
+      <h2 class="pagehead">Structure of <span class="mono" id="structTitle"></span></h2>
+      <div class="card">
+        <h2>Columns</h2>
+        <div class="gridwrap" style="border:0"><table class="grid" id="colGrid"></table></div>
+        <div id="colEditPanel" class="hidden" style="margin-top:.8rem"></div>
+        <div style="margin-top:.8rem"><button class="ghost" id="btnAddCol">+ Add column</button></div>
+      </div>
+      <div class="card">
+        <h2>Indexes</h2>
+        <div class="gridwrap" style="border:0"><table class="grid" id="idxGrid"></table></div>
+      </div>
+      <div class="card">
+        <h2>CREATE statement</h2>
+        <pre class="sqlout" id="createSql"></pre>
+      </div>
+      <div class="card danger-zone">
+        <h2>Danger zone</h2>
+        <div class="frow">
+          <button class="ghost" id="btnRename">Rename table</button>
+          <button class="warn" id="btnTruncate">Truncate (delete all rows)</button>
+          <button class="danger" id="btnDrop">Drop table</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ sql ============ -->
+    <section id="view-sql" class="hidden">
+      <h2 class="pagehead">SQL console <span class="hint" id="sqlDbNote"></span></h2>
+      <textarea id="sqlbox" spellcheck="false"
+        placeholder="Any SQL, one or more statements separated by ; — Ctrl+Enter to run"></textarea>
+      <div class="toolbar" style="margin-top:.6rem">
+        <button id="btnRunSql">Run</button>
+        <button class="ghost" id="btnClearSql">Clear results</button>
+        <span class="hint">Result sets are capped at 500 rows in the console.</span>
+      </div>
+      <div id="sqlResults"></div>
+    </section>
+
+    <!-- ============ new table ============ -->
+    <section id="view-newtable" class="hidden">
+      <h2 class="pagehead">Create table in <span class="mono" id="ntDb"></span></h2>
+      <div class="card">
+        <div class="frow">
+          <div class="fld"><label>Table name</label><input type="text" id="ntName" style="width:240px"></div>
+          <div class="fld"><label>Engine</label>
+            <select id="ntEngine"><option>InnoDB</option><option>Aria</option><option>MyISAM</option><option>MEMORY</option></select>
+          </div>
+        </div>
+        <table class="grid" id="ntCols" style="margin-top:.4rem"></table>
+        <div class="frow" style="margin-top:.7rem">
+          <button class="ghost" id="ntAddCol">+ Add column</button>
+          <span class="spacer"></span>
+          <button class="ghost" id="ntCancel">Cancel</button>
+          <button id="ntCreate">Create table</button>
+        </div>
+        <p class="hint">Type is free-form — pick from the list or write any valid MariaDB type
+          (e.g. <span style="font-family:var(--mono)">DECIMAL(12,4)</span>,
+          <span style="font-family:var(--mono)">ENUM('a','b')</span>).</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toasts"></div>
+<datalist id="typeList">
+  <option>INT</option><option>BIGINT</option><option>SMALLINT</option><option>TINYINT</option>
+  <option>DECIMAL(10,2)</option><option>FLOAT</option><option>DOUBLE</option>
+  <option>VARCHAR(255)</option><option>CHAR(10)</option>
+  <option>TEXT</option><option>MEDIUMTEXT</option><option>LONGTEXT</option>
+  <option>DATE</option><option>DATETIME</option><option>TIMESTAMP</option><option>TIME</option><option>YEAR</option>
+  <option>BOOLEAN</option><option>BLOB</option><option>JSON</option>
+</datalist>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const state = { db:null, table:null, page:0, size:50, sort:null, dir:'asc',
+                struct:null, view:'browse', tables:[] };
+
+/* ---------------- api ---------------- */
+async function api(path, body) {
+  const opts = body === undefined ? {} :
+    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) };
+  const r = await fetch('api' + path, opts);
+  let data;
+  try { data = await r.json(); } catch { throw new Error('Server returned an unreadable response'); }
+  if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+function toast(msg, isErr) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), isErr ? 7000 : 3500);
+}
+const run = fn => (...a) => fn(...a).catch(e => toast(e.message, true));
+
+/* ---------------- boot ---------------- */
+const boot = run(async () => {
+  const meta = await api('/meta');
+  $('#conn').innerHTML =
+    `<b>${esc(meta.user)}</b>@${esc(meta.host)}:${esc(meta.port)} &nbsp;·&nbsp; MariaDB ${esc(meta.version)}` +
+    ` &nbsp;·&nbsp; default db <b>${esc(meta.database || '—')}</b><span class="cursor"></span>`;
+  if (meta.authEnabled) $('#logout').classList.remove('hidden');
+
+  const d = await api('/databases');
+  const sel = $('#dbsel');
+  sel.innerHTML = '';
+  for (const db of d.databases) {
+    const o = document.createElement('option');
+    o.value = db.name;
+    o.textContent = db.name + (db.system ? '  (system)' : '');
+    sel.appendChild(o);
+  }
+  state.db = meta.database && d.databases.some(x => x.name === meta.database)
+    ? meta.database : (d.databases.find(x => !x.system) || d.databases[0] || {}).name;
+  if (state.db) sel.value = state.db;
+  await loadTables();
+});
+
+/* ---------------- sidebar ---------------- */
+const loadTables = run(async () => {
+  if (!state.db) return;
+  const d = await api('/tables?db=' + encodeURIComponent(state.db));
+  state.tables = d.tables;
+  renderTables();
+});
+function renderTables() {
+  const filter = $('#tblFilter').value.toLowerCase();
+  const box = $('#tables');
+  box.innerHTML = '';
+  for (const t of state.tables) {
+    if (filter && !t.name.toLowerCase().includes(filter)) continue;
+    const el = document.createElement('div');
+    el.className = 'tbl-item' + (t.name === state.table ? ' active' : '');
+    el.innerHTML = `<span class="nm">${esc(t.name)}${t.view ? '<span class="badge">VIEW</span>' : ''}</span>` +
+                   `<span class="ct">${t.rows === null || t.rows === undefined ? '' : '~' + t.rows}</span>`;
+    el.onclick = () => openTable(t.name);
+    box.appendChild(el);
+  }
+  if (!box.children.length) {
+    box.innerHTML = '<div style="padding:.6rem 1rem;font-size:.78rem;color:#8fb2b3">No tables yet — create one below.</div>';
+  }
+}
+$('#tblFilter').addEventListener('input', renderTables);
+$('#dbsel').addEventListener('change', run(async e => {
+  state.db = e.target.value; state.table = null; state.struct = null;
+  showView('welcome'); $('#tabs').classList.add('hidden');
+  await loadTables();
+}));
+
+$('#btnNewDb').onclick = run(async () => {
+  const name = prompt('New database name:');
+  if (!name) return;
+  await api('/create_database', { name });
+  toast('Database ' + name + ' created');
+  location.reload();
+});
+$('#btnDropDb').onclick = run(async () => {
+  if (!state.db) return;
+  const typed = prompt(`This DROPS the entire database "${state.db}" and everything in it.\nType the database name to confirm:`);
+  if (typed !== state.db) { if (typed !== null) toast('Name did not match — nothing dropped', true); return; }
+  await api('/drop_database', { name: state.db });
+  toast('Database dropped');
+  location.reload();
+});
+
+/* ---------------- views/tabs ---------------- */
+function showView(v) {
+  state.view = v;
+  for (const s of ['welcome','browse','structure','sql','newtable'])
+    $('#view-' + s).classList.toggle('hidden', s !== v);
+  $$('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+}
+$$('#tabs .tab').forEach(b => b.onclick = () => {
+  showView(b.dataset.view);
+  if (b.dataset.view === 'sql') $('#sqlDbNote').textContent = state.db ? '— running against ' + state.db : '';
+});
+
+const openTable = run(async name => {
+  state.table = name; state.page = 0; state.sort = null; state.dir = 'asc';
+  $('#tabs').classList.remove('hidden');
+  renderTables();
+  state.struct = await api('/structure?db=' + encodeURIComponent(state.db) + '&table=' + encodeURIComponent(name));
+  renderStructure();
+  showView('browse');
+  $('#insertPanel').classList.add('hidden');
+  await loadBrowse();
+});
+
+/* ---------------- browse ---------------- */
+const loadBrowse = run(async () => {
+  if (!state.table) return;
+  $('#browseTitle').textContent = state.db + '.' + state.table;
+  let url = `/browse?db=${encodeURIComponent(state.db)}&table=${encodeURIComponent(state.table)}` +
+            `&page=${state.page}&size=${state.size}`;
+  if (state.sort) url += `&sort=${encodeURIComponent(state.sort)}&dir=${state.dir}`;
+  const d = await api(url);
+  renderGrid(d);
+  const from = d.total === 0 ? 0 : d.page * d.size + 1;
+  const to = Math.min(d.total, (d.page + 1) * d.size);
+  $('#pgInfo').textContent = `${from}–${to} of ${d.total}`;
+  const last = Math.max(0, Math.ceil(d.total / d.size) - 1);
+  $('#pgFirst').disabled = $('#pgPrev').disabled = d.page === 0;
+  $('#pgNext').disabled = $('#pgLast').disabled = d.page >= last;
+  state.lastPage = last;
+});
+
+function renderGrid(d) {
+  const g = $('#dataGrid');
+  let html = '<thead><tr>';
+  for (const c of d.columns) {
+    const dir = state.sort === c ? (state.dir === 'asc' ? ' <span class="dir">▲</span>' : ' <span class="dir">▼</span>') : '';
+    html += `<th data-col="${esc(c)}">${esc(c)}${dir}</th>`;
+  }
+  html += '<th class="nosort"></th></tr></thead><tbody>';
+  d.rows.forEach((row, ri) => {
+    html += `<tr data-ri="${ri}">`;
+    row.forEach(cell => {
+      html += cell === null ? '<td class="nullv">NULL</td>' : `<td title="${esc(cell)}">${esc(cell)}</td>`;
+    });
+    html += `<td class="acts"><button class="ghost mini act-edit">Edit</button> ` +
+            `<button class="ghost mini act-del">Delete</button></td></tr>`;
+  });
+  html += '</tbody>';
+  g.innerHTML = html;
+  state.rows = d.rows; state.cols = d.columns; state.pk = d.pk;
+
+  g.querySelectorAll('th[data-col]').forEach(th => th.onclick = () => {
+    const c = th.dataset.col;
+    if (state.sort === c) state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+    else { state.sort = c; state.dir = 'asc'; }
+    loadBrowse();
+  });
+  g.querySelectorAll('.act-del').forEach(b => b.onclick = run(async e => {
+    const ri = +e.target.closest('tr').dataset.ri;
+    if (!confirm('Delete this row?')) return;
+    await api('/delete_row', { db: state.db, table: state.table, key: rowKey(ri) });
+    toast('Row deleted');
+    await loadBrowse();
+  }));
+  g.querySelectorAll('.act-edit').forEach(b => b.onclick = e => editRow(+e.target.closest('tr').dataset.ri));
+}
+
+function rowKey(ri) {
+  const key = {};
+  const cols = state.pk.length ? state.pk : state.cols;
+  for (const c of cols) key[c] = state.rows[ri][state.cols.indexOf(c)];
+  return key;
+}
+
+function editRow(ri) {
+  const tr = $(`#dataGrid tr[data-ri="${ri}"]`);
+  const orig = state.rows[ri];
+  const tds = tr.querySelectorAll('td');
+  state.cols.forEach((c, i) => {
+    const v = orig[i];
+    tds[i].innerHTML =
+      `<input type="text" data-col="${esc(c)}" value="${v === null ? '' : esc(v)}">` +
+      `<label class="nulltog"><input type="checkbox" data-null="${esc(c)}" ${v === null ? 'checked' : ''}> NULL</label>`;
+  });
+  tds[tds.length - 1].innerHTML =
+    '<button class="mini act-save">Save</button> <button class="ghost mini act-cancel">Cancel</button>';
+  state.cols.forEach(c => {
+    tr.querySelector(`input[data-col="${CSS.escape(c)}"]`).addEventListener('input', () => {
+      tr.querySelector(`input[data-null="${CSS.escape(c)}"]`).checked = false;
+    });
+  });
+  tr.querySelector('.act-cancel').onclick = () => loadBrowse();
+  tr.querySelector('.act-save').onclick = run(async () => {
+    const values = {};
+    state.cols.forEach(c => {
+      const nul = tr.querySelector(`input[data-null="${CSS.escape(c)}"]`).checked;
+      values[c] = nul ? null : tr.querySelector(`input[data-col="${CSS.escape(c)}"]`).value;
+    });
+    await api('/update_row', { db: state.db, table: state.table, values, key: rowKey(ri) });
+    toast('Row updated');
+    await loadBrowse();
+  });
+}
+
+/* insert */
+$('#btnInsert').onclick = () => {
+  const p = $('#insertPanel');
+  if (!p.classList.contains('hidden')) { p.classList.add('hidden'); return; }
+  let html = '<h2>Insert row</h2><div class="frow">';
+  for (const col of state.struct.columns) {
+    const auto = /auto_increment/i.test(col.extra);
+    html += `<div class="fld"><label>${esc(col.name)} <span style="text-transform:none;font-weight:400">${esc(col.type)}</span></label>` +
+      `<input type="text" data-icol="${esc(col.name)}" placeholder="${auto ? '(auto)' : (col.default !== null ? 'default: ' + esc(col.default) : '')}">` +
+      `<label class="nulltog" style="color:var(--muted)"><input type="checkbox" data-inull="${esc(col.name)}" ${col.nullable && col.default === null && !auto ? 'checked' : ''}> NULL</label></div>`;
+  }
+  html += '</div><div class="frow"><button id="doInsert">Insert</button></div>';
+  p.innerHTML = html;
+  p.classList.remove('hidden');
+  for (const col of state.struct.columns) {
+    p.querySelector(`input[data-icol="${CSS.escape(col.name)}"]`).addEventListener('input', () => {
+      p.querySelector(`input[data-inull="${CSS.escape(col.name)}"]`).checked = false;
+    });
+  }
+  $('#doInsert').onclick = run(async () => {
+    const values = {};
+    for (const col of state.struct.columns) {
+      const nul = p.querySelector(`input[data-inull="${CSS.escape(col.name)}"]`).checked;
+      const val = p.querySelector(`input[data-icol="${CSS.escape(col.name)}"]`).value;
+      const auto = /auto_increment/i.test(col.extra);
+      if (nul) { if (!auto) values[col.name] = null; continue; }
+      if (val === '' && (auto || col.default !== null)) continue;  // let the server fill it
+      values[col.name] = val;
+    }
+    await api('/insert_row', { db: state.db, table: state.table, values });
+    toast('Row inserted');
+    p.classList.add('hidden');
+    await loadBrowse();
+  });
+};
+
+$('#btnRefresh').onclick = () => loadBrowse();
+$('#pgFirst').onclick = () => { state.page = 0; loadBrowse(); };
+$('#pgPrev').onclick  = () => { state.page = Math.max(0, state.page - 1); loadBrowse(); };
+$('#pgNext').onclick  = () => { state.page = Math.min(state.lastPage, state.page + 1); loadBrowse(); };
+$('#pgLast').onclick  = () => { state.page = state.lastPage; loadBrowse(); };
+$('#pgSize').addEventListener('change', e => { state.size = +e.target.value; state.page = 0; loadBrowse(); });
+
+/* export / import */
+$('#btnExport').onclick = () =>
+  location.href = `export?db=${encodeURIComponent(state.db)}&table=${encodeURIComponent(state.table)}`;
+$('#btnImport').onclick = () => $('#importFile').click();
+$('#importFile').addEventListener('change', run(async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('db', state.db); fd.append('table', state.table); fd.append('file', f);
+  const r = await fetch('import', { method:'POST', body: fd });
+  const d = await r.json();
+  if (!r.ok || d.error) throw new Error(d.error || 'Import failed');
+  toast(d.inserted + ' rows imported');
+  e.target.value = '';
+  await loadBrowse();
+}));
+
+/* ---------------- structure ---------------- */
+function renderStructure() {
+  $('#structTitle').textContent = state.db + '.' + state.table;
+  const s = state.struct;
+  let html = '<thead><tr><th class="nosort">Column</th><th class="nosort">Type</th><th class="nosort">Null</th>' +
+             '<th class="nosort">Key</th><th class="nosort">Default</th><th class="nosort">Extra</th><th class="nosort"></th></tr></thead><tbody>';
+  for (const c of s.columns) {
+    html += `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.type)}</td>` +
+      `<td>${c.nullable ? 'YES' : 'NO'}</td><td>${esc(c.key)}</td>` +
+      `<td>${c.default === null ? '<span class="nullv">NULL</span>' : esc(c.default)}</td>` +
+      `<td>${esc(c.extra)}</td>` +
+      `<td class="acts"><button class="ghost mini col-edit" data-c="${esc(c.name)}">Modify</button> ` +
+      `<button class="ghost mini col-drop" data-c="${esc(c.name)}">Drop</button></td></tr>`;
+  }
+  $('#colGrid').innerHTML = html + '</tbody>';
+
+  let ih = '<thead><tr><th class="nosort">Index</th><th class="nosort">Unique</th><th class="nosort">Columns</th></tr></thead><tbody>';
+  for (const i of s.indexes) {
+    ih += `<tr><td>${esc(i.name)}</td><td>${i.unique ? 'yes' : 'no'}</td><td>${esc(i.columns)}</td></tr>`;
+  }
+  $('#idxGrid').innerHTML = ih + (s.indexes.length ? '' : '<tr><td colspan="3" class="nullv">none</td></tr>') + '</tbody>';
+  $('#createSql').textContent = s.createSql || '';
+
+  $$('.col-drop').forEach(b => b.onclick = run(async () => {
+    const c = b.dataset.c;
+    if (!confirm(`Drop column "${c}" and all its data?`)) return;
+    await api('/drop_column', { db: state.db, table: state.table, name: c });
+    toast('Column dropped');
+    await refreshStruct();
+  }));
+  $$('.col-edit').forEach(b => b.onclick = () => {
+    const col = state.struct.columns.find(x => x.name === b.dataset.c);
+    columnForm('Modify column ' + col.name, col, run(async spec => {
+      await api('/modify_column', { db: state.db, table: state.table, oldName: col.name, column: spec });
+      toast('Column modified');
+      await refreshStruct();
+    }));
+  });
+}
+async function refreshStruct() {
+  state.struct = await api('/structure?db=' + encodeURIComponent(state.db) + '&table=' + encodeURIComponent(state.table));
+  renderStructure();
+  $('#colEditPanel').classList.add('hidden');
+}
+
+function columnForm(title, col, onSave) {
+  const p = $('#colEditPanel');
+  p.innerHTML = `<div class="card" style="margin:0"><h2>${esc(title)}</h2><div class="frow">
+    <div class="fld"><label>Name</label><input type="text" id="cfName" value="${col ? esc(col.name) : ''}"></div>
+    <div class="fld"><label>Type</label><input type="text" id="cfType" list="typeList" value="${col ? esc(col.type) : 'VARCHAR(255)'}" style="width:170px"></div>
+    <div class="fld chk"><input type="checkbox" id="cfNull" ${!col || col.nullable ? 'checked' : ''}><label for="cfNull">Nullable</label></div>
+    <div class="fld"><label>Default (blank = none)</label><input type="text" id="cfDef" value="${col && col.default !== null ? esc(col.default) : ''}"></div>
+    <div class="fld chk"><input type="checkbox" id="cfDefNull"><label for="cfDefNull">Default NULL</label></div>
+    <button id="cfSave">Save</button>
+    <button class="ghost" id="cfCancel">Cancel</button>
+  </div></div>`;
+  p.classList.remove('hidden');
+  $('#cfCancel').onclick = () => p.classList.add('hidden');
+  $('#cfSave').onclick = () => {
+    const spec = { name: $('#cfName').value, type: $('#cfType').value, nullable: $('#cfNull').checked };
+    if ($('#cfDefNull').checked) spec.defaultValue = 'NULL';
+    else if ($('#cfDef').value !== '') spec.defaultValue = $('#cfDef').value;
+    onSave(spec);
+  };
+}
+$('#btnAddCol').onclick = () => columnForm('Add column', null, run(async spec => {
+  await api('/add_column', { db: state.db, table: state.table, column: spec });
+  toast('Column added');
+  await refreshStruct();
+}));
+
+/* danger zone */
+$('#btnRename').onclick = run(async () => {
+  const n = prompt('New name for ' + state.table + ':', state.table);
+  if (!n || n === state.table) return;
+  await api('/rename_table', { db: state.db, table: state.table, newName: n });
+  toast('Renamed to ' + n);
+  state.table = n;
+  await loadTables();
+  await openTable(n);
+});
+$('#btnTruncate').onclick = run(async () => {
+  if (!confirm(`Delete ALL rows from "${state.table}"? This cannot be undone.`)) return;
+  await api('/truncate_table', { db: state.db, table: state.table });
+  toast('Table truncated');
+  await loadBrowse();
+  await loadTables();
+});
+$('#btnDrop').onclick = run(async () => {
+  const t = state.tables.find(x => x.name === state.table);
+  const typed = prompt(`This DROPS "${state.table}" and all its data.\nType the table name to confirm:`);
+  if (typed !== state.table) { if (typed !== null) toast('Name did not match — nothing dropped', true); return; }
+  await api('/drop_table', { db: state.db, table: state.table, kind: t && t.view ? 'VIEW' : 'TABLE' });
+  toast('Table dropped');
+  state.table = null;
+  $('#tabs').classList.add('hidden');
+  showView('welcome');
+  await loadTables();
+});
+
+/* ---------------- sql console ---------------- */
+const runSql = run(async () => {
+  const sql = $('#sqlbox').value.trim();
+  if (!sql) return;
+  const d = await api('/sql', { db: state.db, sql });
+  const box = $('#sqlResults');
+  for (const r of d.results.reverse()) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    let h = `<div class="hint" style="font-family:var(--mono);margin-bottom:.5rem">${esc(r.statement)}</div>`;
+    if (r.error) {
+      h += `<div style="color:var(--danger);font-weight:600;font-size:.84rem">${esc(r.error)}</div>`;
+    } else if (r.resultSet) {
+      const rs = r.resultSet;
+      h += `<div class="hint" style="margin-bottom:.5rem">${rs.rowCount} row${rs.rowCount === 1 ? '' : 's'}` +
+           `${rs.truncated ? ' (truncated)' : ''} · ${r.ms} ms</div>`;
+      h += '<div class="gridwrap"><table class="grid"><thead><tr>' +
+           rs.columns.map(c => `<th class="nosort">${esc(c)}</th>`).join('') + '</tr></thead><tbody>' +
+           rs.rows.map(row => '<tr>' + row.map(c =>
+             c === null ? '<td class="nullv">NULL</td>' : `<td title="${esc(c)}">${esc(c)}</td>`).join('') + '</tr>').join('') +
+           '</tbody></table></div>';
+    } else {
+      h += `<div style="font-size:.84rem"><b>${r.affected}</b> row${r.affected === 1 ? '' : 's'} affected · ${r.ms} ms</div>`;
+    }
+    card.innerHTML = h;
+    box.prepend(card);
+  }
+  await loadTables();   // DDL may have changed the sidebar
+});
+$('#btnRunSql').onclick = runSql;
+$('#sqlbox').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runSql(); }
+});
+$('#btnClearSql').onclick = () => $('#sqlResults').innerHTML = '';
+
+/* ---------------- create table ---------------- */
+function ntRow(vals) {
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    `<td><input type="text" class="nt-name" value="${vals ? esc(vals.name) : ''}" style="min-width:120px"></td>` +
+    `<td><input type="text" class="nt-type" list="typeList" value="${vals ? esc(vals.type) : 'VARCHAR(255)'}" style="min-width:130px"></td>` +
+    `<td style="text-align:center"><input type="checkbox" class="nt-null" ${vals && !vals.nullable ? '' : 'checked'}></td>` +
+    `<td style="text-align:center"><input type="checkbox" class="nt-ai"></td>` +
+    `<td style="text-align:center"><input type="checkbox" class="nt-pk"></td>` +
+    `<td><input type="text" class="nt-def" placeholder="(none)" style="min-width:90px"></td>` +
+    `<td class="acts"><button class="ghost mini nt-del">✕</button></td>`;
+  tr.querySelector('.nt-del').onclick = () => tr.remove();
+  return tr;
+}
+function openNewTable() {
+  if (!state.db) { toast('Pick a database first', true); return; }
+  $('#ntDb').textContent = state.db;
+  $('#ntName').value = '';
+  const t = $('#ntCols');
+  t.innerHTML = '<thead><tr><th class="nosort">Column</th><th class="nosort">Type</th>' +
+    '<th class="nosort">Nullable</th><th class="nosort">Auto inc</th><th class="nosort">Primary key</th>' +
+    '<th class="nosort">Default</th><th class="nosort"></th></tr></thead>';
+  const tb = document.createElement('tbody');
+  t.appendChild(tb);
+  const first = ntRow({ name:'id', type:'INT', nullable:false });
+  first.querySelector('.nt-ai').checked = true;
+  first.querySelector('.nt-pk').checked = true;
+  tb.appendChild(first);
+  tb.appendChild(ntRow());
+  $('#tabs').classList.add('hidden');
+  showView('newtable');
+}
+$('#btnNewTable').onclick = openNewTable;
+$('#ntAddCol').onclick = () => $('#ntCols tbody').appendChild(ntRow());
+$('#ntCancel').onclick = () => { showView(state.table ? 'browse' : 'welcome'); if (state.table) $('#tabs').classList.remove('hidden'); };
+$('#ntCreate').onclick = run(async () => {
+  const name = $('#ntName').value.trim();
+  if (!name) throw new Error('Table name is required');
+  const columns = [];
+  for (const tr of $$('#ntCols tbody tr')) {
+    const cn = tr.querySelector('.nt-name').value.trim();
+    if (!cn) continue;
+    const col = {
+      name: cn,
+      type: tr.querySelector('.nt-type').value.trim(),
+      nullable: tr.querySelector('.nt-null').checked,
+      autoInc: tr.querySelector('.nt-ai').checked,
+      pk: tr.querySelector('.nt-pk').checked
+    };
+    const def = tr.querySelector('.nt-def').value;
+    if (def !== '') col.defaultValue = def;
+    columns.push(col);
+  }
+  if (!columns.length) throw new Error('At least one column is required');
+  await api('/create_table', { db: state.db, name, engine: $('#ntEngine').value, columns });
+  toast('Table ' + name + ' created');
+  await loadTables();
+  await openTable(name);
+});
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# Runs offline against the provisioned server during the OpenShift build.
+# The ${env.*} expressions are resolved at RUNTIME from the pod's environment
+# variables, so no credentials are baked into the image.
+
+embed-server --server-config=standalone.xml
+
+/subsystem=datasources/jdbc-driver=mariadb:add( \
+    driver-name=mariadb, \
+    driver-module-name=org.mariadb.jdbc, \
+    driver-class-name=org.mariadb.jdbc.Driver, \
+    driver-xa-datasource-class-name=org.mariadb.jdbc.MariaDbDataSource \
+)
+
+data-source add \
+    --name=MariaDBDS \
+    --jndi-name=java:jboss/datasources/MariaDBDS \
+    --driver-name=mariadb \
+    --connection-url=jdbc:mariadb://${env.MARIADB_HOST}:${env.MARIADB_PORT:3306}/${env.MARIADB_DATABASE} \
+    --user-name=${env.MARIADB_USER} \
+    --password=${env.MARIADB_PASSWORD} \
+    --min-pool-size=2 \
+    --max-pool-size=10 \
+    --validate-on-match=true \
+    --background-validation=false \
+    --valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.mysql.MySQLValidConnectionChecker \
+    --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.mysql.MySQLExceptionSorter
+
+stop-embedded-server
