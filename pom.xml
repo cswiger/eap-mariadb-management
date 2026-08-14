@@ -10,6 +10,8 @@
 
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <version.mariadb.driver>3.5.3</version.mariadb.driver>
     <version.eap.maven.plugin>1.0.0.Final-redhat-00014</version.eap.maven.plugin>
@@ -39,6 +41,22 @@
 
   <build>
     <finalName>ROOT</finalName>
+    <plugins>
+      <!-- Pin modern plugin versions; the builder image's Maven defaults are too old -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-war-plugin</artifactId>
+        <version>3.4.0</version>
+        <configuration>
+          <failOnMissingWebXml>false</failOnMissingWebXml>
+        </configuration>
+      </plugin>
+    </plugins>
   </build>
 
   <profiles>
