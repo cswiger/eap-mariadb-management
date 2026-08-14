@@ -2,7 +2,6 @@
 # The ${env.*} expressions are resolved at RUNTIME from the pod's environment
 # variables, so no credentials are baked into the image.
 
-embed-server --server-config=standalone.xml
 
 /subsystem=datasources/jdbc-driver=mariadb:add( \
     driver-name=mariadb, \
@@ -25,4 +24,3 @@ data-source add \
     --valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.mysql.MySQLValidConnectionChecker \
     --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.mysql.MySQLExceptionSorter
 
-stop-embedded-server
